@@ -3,8 +3,10 @@ package request
 import (
 	"io"
 	"strings"
+	"errors"
 	"fmt"
 	"unicode"
+	"bytes"
 )
 
 type RequestLine struct {
@@ -33,30 +35,14 @@ func StringIsUpper(s string) bool {
 	return true
 }
 
-func (r *Request) parse(data []byte) (int, error) {
-	read := 0
+func parseRequestLine(b []byte) (*RequestLine, int, error) {
+	spIndex := bytes.Index(b, []byte("\r\n"))
 
-outer :
-	for { 
-		switch r.state {
-			case StateInit:
-				return read, nil
-			case StateDone:
-				break outer
-		}
-	}
-	return 0, nil
-
-}
-
-func parseRequestLine(s string) (*RequestLine, int, error) {
-	spIndex := strings.Index(s, "\r\n")
-	
 	if spIndex == -1 {
-		return nil, 0, fmt.Errorf("Incomplete request line")
+		return nil, 0, nil
 	}
-	
-	startLine := s[:spIndex]
+
+	startLine := string(b[:spIndex])
 
 	requestLineFields := strings.Fields(startLine)
 
@@ -95,28 +81,61 @@ func parseRequestLine(s string) (*RequestLine, int, error) {
 	return &returnedRequestLine, spIndex, nil
 
 }
+
+func (r *Request) parse(data []byte) (int, error) {
+	bytesRead := 0
+	outer :
+		for { 
+			switch r.state {
+				case StateInit:
+					requestLine, n, err := parseRequestLine(data[bytesRead:])
+					if err != nil {
+						return 0, err
+					}
+					
+					if n == 0 {
+						break outer
+					}
+
+					r.RequestLine = *requestLine
+					bytesRead += n
+					r.state = StateDone
+				case StateDone:
+					break outer
+			}
+		}
+	return bytesRead, nil
+
+}
+
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	returnedRequest := &Request{ state: StateInit }
+	request := &Request{ state: StateInit }
 
 	buffer := make([]byte, 1024)
-	bIndex := 0
+	bSize := 0
 
-	for {
-		reader.Read(buffer[bIndex:])
-
-		n, err := io.Copy(reader)
-		bIndex += n
-		
+	for request.state != StateDone {
+		n, err := reader.Read(buffer[bSize:])
 		if err != nil {
-			return nil, fmt.Errorf("Error in trying to read in the incoming data")
+			if errors.Is(err, io.EOF){
+				if request.state == StateDone {	
+					return request, nil
+				}
+				return nil, io.ErrUnexpectedEOF
+			}
+			return nil, err
+		}
+		bSize += n
+
+		numRead, error :=  request.parse(buffer[:bSize])
+		if error != nil {
+			return nil, error
 		}
 
-		if returnedRequest.status == StateDone {
-			break
-		}
+		nCopy := copy(buffer, buffer[numRead: bSize])
+		bSize = nCopy
+
 	}
-	return &Request{
-		RequestLine: *returnedRequestLine,
-	}, parsingError
 
+	return request, nil
 }
