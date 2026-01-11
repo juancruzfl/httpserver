@@ -6,54 +6,65 @@ import (
 	"fmt"
 )
 
-type Headers map[string]string
-
-func NewHeaders() Headers {
-	n := make(Headers)
-	return n
+type Headers struct {
+	headers map[string]string
 }
 
-func parseHeaderLine(fieldline []byte) (string, string, error) {
+func NewHeaders() *Headers {
+	return &Headers{
+		headers: map[string]string{},
+	}
+}
+
+func (h *Headers) Get(name string) string {
+	return h.headers[strings.ToLower(name)]
+}
+
+func (h *Headers) Set(name string, value string) {
+	h.headers[strings.ToLower(name)] = value
+}
+
+func parseheaderline(fieldline []byte) (string, string, error) {
 	stringfields := string(fieldline)
 	fields := strings.Fields(stringfields)
 
 	for _, field := range fields {
 		if field == ":" {
-			return "", "", fmt.Errorf("Invalid field line format")
+			return "", "", fmt.Errorf("invalid field line format")
 		}
 	}
 
-	splitFields := strings.Split(fields[0], ":")
-	fieldName := splitFields[0]
-	fieldValue := fields[1]
+	splitfields := strings.Split(fields[0], ":")
+	fieldname := splitfields[0]
+	fieldvalue := fields[1]
 
-	return fieldName, fieldValue, nil
+	return fieldname, fieldvalue, nil
 }
 
-func (h Headers) Parse(data []byte) (int, bool, error) {
-	bytesRead := 0
+func (h *Headers) Parse(data []byte) (int, bool, error) {
+	bytesread := 0
 	done := false
 
 	for {
-		sIndex := bytes.Index(data[bytesRead:], []byte("\r\n"))
+		sindex := bytes.Index(data[bytesread:], []byte("\r\n"))
 
-		if sIndex == -1 {
+		if sindex == -1 {
 			break
 		}
 
-		if sIndex == 0 {
+		if sindex == 0 {
 			done = true
 			break
 		}
 
-		fieldName, fieldValue, err := parseHeaderLine(data[:sIndex])
+		fieldname, fieldvalue, err := parseheaderline(data[bytesread : bytesread + sindex])
 	
 		if err != nil {
 			return 0, done, err
 		}
 		
-		h[fieldName] = fieldValue
-		bytesRead += sIndex + 2
+		h.Set(fieldname, fieldvalue)
+		bytesread += sindex + 2
 	}
-	return bytesRead, done, nil
+	return bytesread, done, nil
 }

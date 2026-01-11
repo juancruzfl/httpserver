@@ -14,7 +14,7 @@ func TestValidSpacing (t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:8000", headers["Host"])
+	assert.Equal(t, "localhost:8000", headers.Get("Host"))
 	assert.Equal(t, 23, n)
 	assert.True(t, done)
 }
