@@ -21,7 +21,7 @@ func TestValidSpacing (t *testing.T) {
 	assert.Equal(t, true, ok)
 	assert.Equal(t, 23, n)
 	assert.True(t, done)
-	assert.Error(t, mandatoryHeaders)
+	assert.NoError(t, mandatoryHeaders)
 }
 
 func TestInvalidHeaderSpacing(t *testing.T) {
@@ -63,4 +63,19 @@ func TestMulipleLines(t *testing.T) {
 	assert.Equal(t, "curl/0.0.0", headersvalagent)
 	assert.Equal(t, true, okagent)
 	assert.NoError(t, mandatoryHeaders)
+}
+
+
+func TestMutlipleHeaders(t *testing.T) {
+	headers := NewHeaders()
+	
+	data := []byte("Host: localhost:8000 \r\nAccept: text/html \r\nAccept: application/xhtml+xml \r\nAccept: */*\r\n\r\n")
+	n, done, err := headers.Parse(data)
+	headersaccept, okaccept := headers.Get("Accept")
+
+	assert.Equal(t, 88, n)
+	require.True(t, done)
+	require.NoError(t, err)
+	require.True(t, okaccept)
+	require.Equal(t, "text/html, application/xhtml+xml, */*", headersaccept)
 }

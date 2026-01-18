@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"unicode"
 	"bytes"
+	"github.com/juancruzfl/httpserver/internal/headers"
 )
 
 type RequestLine struct {
@@ -17,13 +18,21 @@ type RequestLine struct {
 
 type Request struct {
 	RequestLine RequestLine	
+	Headers headers.Headers
 	state parserState
 }
 
+func newRequest() *Request {
+	return &Request{
+		Headers: *headers.NewHeaders(),
+		state: StateInit,
+	}
+}
 type parserState int 
 const (
 	StateInit parserState = 0 
 	StateDone parserState = 1
+	StateHeaders parserState = 2
 )
 
 func StringIsUpper(s string) bool {
@@ -98,8 +107,21 @@ func (r *Request) parse(data []byte) (int, error) {
 					}
 
 					r.RequestLine = *requestLine
-					bytesRead += n
-					r.state = StateDone
+					bytesRead += n + 2
+					r.state = StateHeaders
+				
+				case StateHeaders:
+					headerBytesRead, done, err := r.Headers.Parse(data[bytesRead:])
+					if err != nil {
+						return 0, err
+					}
+
+					bytesRead += headerBytesRead
+					
+					if done {
+						r.state = StateDone
+					}
+					return bytesRead, nil
 				case StateDone:
 					break outer
 			}
@@ -109,7 +131,7 @@ func (r *Request) parse(data []byte) (int, error) {
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	request := &Request{ state: StateInit }
+	request := newRequest()
 
 	buffer := make([]byte, 1024)
 	bSize := 0

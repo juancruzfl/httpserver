@@ -135,3 +135,19 @@ func TestParseRequestLine_TooManyTokens(t *testing.T) {
 	assert.Nil(t, r)
 
 }
+
+func TestParseHeaders(t *testing.T) {
+	reader := &chunkReader {
+		data: "GET / HTTP/1.1 \r\nHost: localhost:8000 \r\nUser-Agent: curl/0.0.0 \r\nAccept: */* \r\nTransfer-Encoding: chunked\r\n\r\n",
+		chunkSize: 3,
+	}
+	r, err := RequestFromReader(reader)
+	hostHeader, okhost := r.Headers.Get("Host")
+	useragentHeader, okagent := r.Headers.Get("user-agent")
+
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:8000", hostHeader)
+	assert.Equal(t, "curl/0.0.0", useragentHeader)
+	assert.True(t, okhost)
+	assert.True(t, okagent)
+}

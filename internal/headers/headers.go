@@ -34,23 +34,52 @@ func (h *Headers) Set(name string, value string) {
 	}
 }
 
+func isTokenChar(char byte) bool {
+	if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') {
+		return true
+	}
+	
+	switch char {
+	case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		return true
+	}
+	return false 
+}
+
+func validateFieldName(name []byte) bool {
+	if name == nil {
+		return false
+	}
+
+	for i := 0; i < len(name); i++ {
+		char := name[i]
+		if !isTokenChar(char) {
+			return false
+		}
+	}
+	return true
+}
+
 func parseheaderline(fieldline []byte) (string, string, error) {
-	stringfields := string(fieldline)
-	colonIndex := strings.Index(stringfields, ":")
+	colonIndex := bytes.Index(fieldline, []byte(":"))
 	
 	if colonIndex == -1 {
 		return "", "", fmt.Errorf("Error in trying to parse header line")
 	}
 	
-	lastChar := stringfields[colonIndex - 1]
+	lastChar := fieldline[colonIndex - 1]
 	if lastChar == ' ' || lastChar == '\t' {
 		return "", "", fmt.Errorf("Error in trying to parse header line. Field name contains a tab or space between the colon")
 	}
 
-	fieldname := stringfields[:colonIndex]
-	fieldvalue := strings.TrimSpace(stringfields[colonIndex + 2:])
+	fieldname := fieldline[:colonIndex]
+	fieldvalue := bytes.TrimSpace(fieldline[colonIndex + 1:])
 
-	return fieldname, fieldvalue, nil
+	if valid := validateFieldName(fieldname); !valid{
+		return "", "", fmt.Errorf("Error in trying to parse header line. Invalid tokens in field name")
+	}
+
+	return string(fieldname), string(fieldvalue), nil
 }
 
 func (h *Headers) validateMandatoryHeaders() error {
@@ -61,9 +90,7 @@ func (h *Headers) validateMandatoryHeaders() error {
 	if okContentLength && okTransEncoding {
 		return fmt.Errorf("Transfer Encoding and Content-Length detected. Not allowed")
 	}
-	if !okTransEncoding && !okContentLength {
-		return fmt.Errorf("Detected No Transfer-Encoding or Content-Length.")
-	} 
+
 	if !okHost {
 		return fmt.Errorf("No host detected")
 	}
@@ -80,6 +107,10 @@ func (h *Headers) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (h *Headers) parseFieldValues() {
+	
 }
 
 func (h *Headers) Parse(data []byte) (int, bool, error) {
