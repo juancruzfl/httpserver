@@ -16,29 +16,70 @@ func NewHeaders() *Headers {
 	}
 }
 
-func (h *Headers) Get(name string) string {
-	return h.headers[strings.ToLower(name)]
+func (h *Headers) Get(name string) (string, bool) {
+	key := strings.ToLower(name)
+	i, ok := h.headers[key]
+	return i, ok
 }
 
 func (h *Headers) Set(name string, value string) {
-	h.headers[strings.ToLower(name)] = value
+	key := strings.ToLower(name)
+
+	exisiting, ok := h.Get(key)
+	
+	if ok {
+		h.headers[key] = exisiting + ", " + value
+	} else {
+		h.headers[key] = value
+	}
 }
 
 func parseheaderline(fieldline []byte) (string, string, error) {
 	stringfields := string(fieldline)
-	fields := strings.Fields(stringfields)
-
-	for _, field := range fields {
-		if field == ":" {
-			return "", "", fmt.Errorf("invalid field line format")
-		}
+	colonIndex := strings.Index(stringfields, ":")
+	
+	if colonIndex == -1 {
+		return "", "", fmt.Errorf("Error in trying to parse header line")
+	}
+	
+	lastChar := stringfields[colonIndex - 1]
+	if lastChar == ' ' || lastChar == '\t' {
+		return "", "", fmt.Errorf("Error in trying to parse header line. Field name contains a tab or space between the colon")
 	}
 
-	splitfields := strings.Split(fields[0], ":")
-	fieldname := splitfields[0]
-	fieldvalue := fields[1]
+	fieldname := stringfields[:colonIndex]
+	fieldvalue := strings.TrimSpace(stringfields[colonIndex + 2:])
 
 	return fieldname, fieldvalue, nil
+}
+
+func (h *Headers) validateMandatoryHeaders() error {
+	_, okContentLength := h.Get("Content-Length")
+	_, okTransEncoding := h.Get("Transfer-Encoding")
+	exitisingHost, okHost := h.Get("Host")
+
+	if okContentLength && okTransEncoding {
+		return fmt.Errorf("Transfer Encoding and Content-Length detected. Not allowed")
+	}
+	if !okTransEncoding && !okContentLength {
+		return fmt.Errorf("Detected No Transfer-Encoding or Content-Length.")
+	} 
+	if !okHost {
+		return fmt.Errorf("No host detected")
+	}
+	if strings.Contains(exitisingHost, ",") {
+		return fmt.Errorf("More than one host has been detected")
+	}
+	
+	return nil
+}
+
+
+func (h *Headers) Validate() error {
+	if err := h.validateMandatoryHeaders(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (h *Headers) Parse(data []byte) (int, bool, error) {
