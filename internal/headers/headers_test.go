@@ -19,7 +19,7 @@ func TestValidSpacing (t *testing.T) {
 	require.NotNil(t, headers)
 	assert.Equal(t, "localhost:8000", headerval)
 	assert.Equal(t, true, ok)
-	assert.Equal(t, 23, n)
+	assert.Equal(t, 25, n)
 	assert.True(t, done)
 	assert.NoError(t, mandatoryHeaders)
 }
@@ -41,7 +41,7 @@ func TestParseValue(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, 57, n)
+	assert.Equal(t, 59, n)
 	assert.True(t, done)
 }
 
@@ -58,13 +58,12 @@ func TestMulipleLines(t *testing.T) {
 	require.NotNil(t, headers)
 	assert.True(t, done)
 	assert.Equal(t, true, okhost)
-	assert.Equal(t, 90, n)
+	assert.Equal(t, 92, n)
 	assert.Equal(t, "localhost:8000", headersvalhost)
 	assert.Equal(t, "curl/0.0.0", headersvalagent)
 	assert.Equal(t, true, okagent)
 	assert.NoError(t, mandatoryHeaders)
 }
-
 
 func TestMutlipleHeaders(t *testing.T) {
 	headers := NewHeaders()
@@ -73,9 +72,10 @@ func TestMutlipleHeaders(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	headersaccept, okaccept := headers.Get("Accept")
 
-	assert.Equal(t, 88, n)
+	assert.Equal(t, 90, n)
 	require.True(t, done)
 	require.NoError(t, err)
 	require.True(t, okaccept)
 	require.Equal(t, "text/html, application/xhtml+xml, */*", headersaccept)
 }
+

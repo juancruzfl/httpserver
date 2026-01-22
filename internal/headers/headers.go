@@ -34,6 +34,12 @@ func (h *Headers) Set(name string, value string) {
 	}
 }
 
+func (h *Headers) ForEach(fn func(key, value string)) {
+	for k,v := range h.headers {
+		fn(k, v)
+	}
+}
+
 func isTokenChar(char byte) bool {
 	if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') {
 		return true
@@ -101,16 +107,11 @@ func (h *Headers) validateMandatoryHeaders() error {
 	return nil
 }
 
-
 func (h *Headers) Validate() error {
 	if err := h.validateMandatoryHeaders(); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (h *Headers) parseFieldValues() {
-	
 }
 
 func (h *Headers) Parse(data []byte) (int, bool, error) {
@@ -126,6 +127,7 @@ func (h *Headers) Parse(data []byte) (int, bool, error) {
 
 		if sindex == 0 {
 			done = true
+			bytesread += 2
 			break
 		}
 

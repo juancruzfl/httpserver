@@ -3,6 +3,7 @@ package request
 import (
 	"io"
 	"strings"
+	"strconv"
 	"errors"
 	"fmt"
 	"unicode"
@@ -19,6 +20,8 @@ type RequestLine struct {
 type Request struct {
 	RequestLine RequestLine	
 	Headers headers.Headers
+	Body []byte
+	bodyLength int
 	state parserState
 }
 
@@ -26,6 +29,8 @@ func newRequest() *Request {
 	return &Request{
 		Headers: *headers.NewHeaders(),
 		state: StateInit,
+		Body: nil,
+		bodyLength: 0,
 	}
 }
 type parserState int 
@@ -33,6 +38,8 @@ const (
 	StateInit parserState = 0 
 	StateDone parserState = 1
 	StateHeaders parserState = 2
+	StateBodyFixed parserState = 3
+	StateBodyChunked parserState = 4
 )
 
 func StringIsUpper(s string) bool {
@@ -94,38 +101,71 @@ func parseRequestLine(b []byte) (*RequestLine, int, error) {
 func (r *Request) parse(data []byte) (int, error) {
 	bytesRead := 0
 	outer :
-		for { 
-			switch r.state {
-				case StateInit:
-					requestLine, n, err := parseRequestLine(data[bytesRead:])
-					if err != nil {
-						return 0, err
-					}
-					
-					if n == 0 {
-						break outer
-					}
-
-					r.RequestLine = *requestLine
-					bytesRead += n + 2
-					r.state = StateHeaders
+	for { 
+		if len(data[bytesRead:]) == 0 {
+			break outer
+		}
+		
+		switch r.state {
+			case StateInit:
+				requestLine, n, err := parseRequestLine(data[bytesRead:])
+				if err != nil {
+					return 0, err
+				}
 				
-				case StateHeaders:
-					headerBytesRead, done, err := r.Headers.Parse(data[bytesRead:])
-					if err != nil {
-						return 0, err
-					}
+				if n == 0 {
+					break outer
+				}
 
-					bytesRead += headerBytesRead
-					
-					if done {
+				r.RequestLine = *requestLine
+				bytesRead += n + 2
+				r.state = StateHeaders
+			
+			case StateHeaders:
+				headerBytesRead, done, err := r.Headers.Parse(data[bytesRead:])
+				if err != nil {
+					return 0, err
+				}
+
+				bytesRead += headerBytesRead
+				
+				if done {					
+					if contentLength, clok := r.Headers.Get("Content-Length"); clok {
+						bodyLength, bodyErr := strconv.Atoi(contentLength)
+						if bodyErr != nil {
+							return 0, bodyErr
+						}
+						if bodyLength == 0 {
+							r.state = StateDone
+							break outer
+						}
+						r.bodyLength = bodyLength
+						r.state = StateBodyFixed
+					} else if _, teok := r.Headers.Get("Transfer-Encoding"); teok {
+						r.state = StateDone
+					} else {
 						r.state = StateDone
 					}
-					return bytesRead, nil
-				case StateDone:
-					break outer
-			}
+				}
+				
+				return bytesRead, nil
+			case StateBodyFixed:
+				remaining := r.bodyLength - len(r.Body)
+				available := len(data) - bytesRead		
+				if available > remaining {
+					return bytesRead, fmt.Errorf("Too many characters sent by request")
+				}
+				
+				r.Body = append(r.Body, data[bytesRead: bytesRead + available]...)
+				bytesRead += available
+				
+				if len(r.Body) == r.bodyLength {
+					r.state = StateDone
+				}	
+			case StateDone:
+				break outer
 		}
+	}
 	return bytesRead, nil
 
 }
@@ -156,7 +196,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		nCopy := copy(buffer, buffer[numRead: bSize])
 		bSize = nCopy
-
+		
+		
+		if numRead == 0 && bSize == len(buffer) {
+			return nil, fmt.Errorf("Request header on line too long")
+		}
 	}
 
 	return request, nil

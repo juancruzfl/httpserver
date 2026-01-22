@@ -3,6 +3,7 @@ package request
 import ( 
 	"testing"
 	"io"
+	"strings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,7 +130,6 @@ func TestParseRequestLine_TooManyTokens(t *testing.T) {
 		data: "GET / HTTP/1.1 EXTRA\r\n\r\n",
 		chunkSize: 3,
 	}
-
 	r, err := RequestFromReader(reader)
 	require.Error(t, err)
 	assert.Nil(t, r)
@@ -138,16 +138,90 @@ func TestParseRequestLine_TooManyTokens(t *testing.T) {
 
 func TestParseHeaders(t *testing.T) {
 	reader := &chunkReader {
-		data: "GET / HTTP/1.1 \r\nHost: localhost:8000 \r\nUser-Agent: curl/0.0.0 \r\nAccept: */* \r\nTransfer-Encoding: chunked\r\n\r\n",
+		data: "GET / HTTP/1.1\r\nHost: localhost:8000 \r\nUser-Agent: curl/0.0.0 \r\nAccept: */* \r\nTransfer-Encoding: chunked\r\n\r\n",
 		chunkSize: 3,
 	}
 	r, err := RequestFromReader(reader)
 	hostHeader, okhost := r.Headers.Get("Host")
 	useragentHeader, okagent := r.Headers.Get("user-agent")
-
+	
 	require.NoError(t, err)
 	assert.Equal(t, "localhost:8000", hostHeader)
 	assert.Equal(t, "curl/0.0.0", useragentHeader)
 	assert.True(t, okhost)
 	assert.True(t, okagent)
+}
+
+func TestValidBodyLength(t *testing.T) {
+	reader := &chunkReader {
+		data : "GET /test HTTP/1.1\r\nHost: localhost:8091 \r\nUser-Agent: curl/0.0.0 \r\nAccept: image/jpeg \r\nContent-Length: 10\r\n\r\ntesting te",
+		chunkSize: 3,
+	}
+	r, err := RequestFromReader(reader)
+	stringBody := string(r.Body)
+	contentLength, okcl := r.Headers.Get("Content-Length")
+
+	require.NoError(t, err)
+	assert.Equal(t, "10", contentLength)
+	assert.True(t, okcl)
+	assert.Equal(t, "testing te", stringBody)
+}
+
+func TestIncorrectBodyLength(t *testing.T) {
+	reader := &chunkReader {
+		data : "GET /parsing HTTP/1.1\r\nHost: localhost:8001 \r\nUser-Agent: curl/0.0.0 \r\nAccept: text/html \r\nContent-Length: 9\r\n\r\nsomerandom",
+		chunkSize: 3,
+	}
+	_, err := RequestFromReader(reader)
+
+	require.Error(t, err)
+}
+
+func TestBodyOneByteAtATime(t *testing.T) {
+    reader := &chunkReader{
+        data:      "POST /tiny HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\n\r\nhello",
+        chunkSize: 1,
+    }
+    r, err := RequestFromReader(reader)
+
+    require.NoError(t, err)
+    assert.Equal(t, "hello", string(r.Body))
+    assert.Equal(t, 5, len(r.Body))
+}
+
+func TestZeroLengthBody(t *testing.T) {
+    reader := &chunkReader{
+        data:      "GET /empty HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+        chunkSize: 3,
+    }
+    r, err := RequestFromReader(reader)
+
+    require.NoError(t, err)
+    assert.Equal(t, 0, len(r.Body))
+    assert.Equal(t, StateDone, r.state)
+}
+
+func TestHeaderTooLong(t *testing.T) {
+	longHeaderLine := "X-Long: " + strings.Repeat("a", 1500) + "\r\n"
+    reader := &chunkReader{
+        data:      "GET / HTTP/1.1\r\n" + longHeaderLine + "\r\n",
+        chunkSize: 128,
+    }
+    request, err := RequestFromReader(reader)
+
+    require.Error(t, err)
+	assert.Nil(t, request)
+}
+
+func TestDuplicateHeaders(t *testing.T) {
+    reader := &chunkReader{
+        data:      "GET / HTTP/1.1\r\nHost: localhost\r\nSet-Cookie: ID=1\r\nSet-Cookie: User=Admin\r\n\r\n",
+        chunkSize: 10,
+    }
+    r, err := RequestFromReader(reader)
+
+    require.NoError(t, err)
+    cookie, ok := r.Headers.Get("Set-Cookie")
+    assert.True(t, ok)
+    assert.Equal(t, "ID=1, User=Admin", cookie)
 }

@@ -30,6 +30,7 @@ func main(){
 		
 		req, err := request.RequestFromReader(conn)
 		requestLine := req.RequestLine
+		requestHeaders := req.Headers
 		if err != nil {
 			log.Fatal("error", err)
 		}
@@ -38,5 +39,9 @@ func main(){
 		fmt.Printf("- Method: %s\n", requestLine.Method)
 		fmt.Printf("- Target: %s\n", requestLine.RequestTarget)
 		fmt.Printf("- Version: %s\n", requestLine.HttpVersion)
+		fmt.Printf("Headers")
+		requestHeaders.ForEach(func(key, value string) {
+			fmt.Printf("- %s: %s\n", key, value)
+		})
 	}
 }
