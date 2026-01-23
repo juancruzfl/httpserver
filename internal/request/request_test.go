@@ -138,7 +138,7 @@ func TestParseRequestLine_TooManyTokens(t *testing.T) {
 
 func TestParseHeaders(t *testing.T) {
 	reader := &chunkReader {
-		data: "GET / HTTP/1.1\r\nHost: localhost:8000 \r\nUser-Agent: curl/0.0.0 \r\nAccept: */* \r\nTransfer-Encoding: chunked\r\n\r\n",
+		data: "GET / HTTP/1.1\r\nHost: localhost:8000 \r\nUser-Agent: curl/0.0.0 \r\nAccept: */* \r\nTransfer-Encoding: chunked\r\n\r\n7\r\nWelcome\r\n1c\r\ntesttest test test test test\r\n0\r\n\r\n",
 		chunkSize: 3,
 	}
 	r, err := RequestFromReader(reader)

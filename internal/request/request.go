@@ -39,7 +39,8 @@ const (
 	StateDone parserState = 1
 	StateHeaders parserState = 2
 	StateBodyFixed parserState = 3
-	StateBodyChunked parserState = 4
+	StateBodyChunkedRead parserState = 4
+	StateBodyChunkedWrite parserState = 5
 )
 
 func StringIsUpper(s string) bool {
@@ -142,7 +143,7 @@ func (r *Request) parse(data []byte) (int, error) {
 						r.bodyLength = bodyLength
 						r.state = StateBodyFixed
 					} else if _, teok := r.Headers.Get("Transfer-Encoding"); teok {
-						r.state = StateDone
+						r.state = StateBodyChunkedRead
 					} else {
 						r.state = StateDone
 					}
@@ -162,6 +163,41 @@ func (r *Request) parse(data []byte) (int, error) {
 				if len(r.Body) == r.bodyLength {
 					r.state = StateDone
 				}	
+			case StateBodyChunkedRead:
+				sIndex := bytes.Index(data[bytesRead:], []byte("\r\n"))
+				if sIndex == -1 {
+					return bytesRead, nil
+				}
+				hexaSize := string(data[bytesRead: sIndex])
+				decimalSize, err := strconv.ParseInt(hexaSize, 16, 64)
+				bodySize := int(decimalSize)
+
+				if err != nil {
+					return bytesRead, err
+				}
+				sizeLength := sIndex - bytesRead
+				bytesRead += sizeLength + 2
+				
+				if bodySize == 0{
+					bytesRead += 2
+					r.state = StateDone
+					break outer
+				}
+				r.bodyLength = bodySize
+				r.state = StateBodyChunkedWrite
+			case StateBodyChunkedWrite:
+				sIndex := bytes.Index(data[bytesRead:], []byte("\r\n"))
+				if sIndex == -1 {
+					return bytesRead, nil
+				}
+				bodySize := sIndex - bytesRead
+				
+				if bodySize != r.bodyLength {
+					return bytesRead, fmt.Errorf("Error while parsing chunked body. Too many bytes sent")
+				}
+				r.Body = append(r.Body, data[bytesRead: sIndex]...)
+				bytesRead += bodySize + 2
+				r.state = StateBodyChunkedRead
 			case StateDone:
 				break outer
 		}
