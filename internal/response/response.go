@@ -4,6 +4,12 @@ import (
 	"github.com/juancruzfl/httpserver/internal/headers"
 )
 
+type CustomeResponseWriter interface {
+	Headers headers.Headers
+	Write([]byte) (int, error)
+	CustomWriteHeader(statusCode int)
+}
+
 type Response struct {
 	Status int
 	Headers headers.Headers
@@ -14,7 +20,7 @@ type Response struct {
 func newResponse() *Response {
 	return &Response{
 		Status: 200,
-		Headers: *headers.NewHeaders(),
+		Heeders: *headers.NewHeaders(),
 		Body: nil,
 		HttpVersion: "",
 	}
