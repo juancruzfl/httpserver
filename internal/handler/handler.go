@@ -1,4 +1,4 @@
-package handlder
+package handler
 
 import (
 	"github.com/juancruzfl/httpserver/internal/request"

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"net"
 	"log"
+	"net"
 	"github.com/juancruzfl/httpserver/internal/request"
 	"github.com/juancruzfl/httpserver/internal/response"
 	"github.com/juancruzfl/httpserver/internal/handler"
@@ -37,15 +37,15 @@ func (m *MyServerMux) ServeHttp(w response.ResponseWriter, r *request.Request) {
 
 // sidenote: we are casting the function that is being pass to the HandlerFunc method of the server multiplexer to the HandlerFunc apdater of the handler interface. It in turn, gives
 // us a valid handler, which is useful since we can reuse our Handle method.
-func (m *MyServerMux) HandlerFunc(route string, f func(w response.ResponseWriter, r *request.Request) {
-	m.Handle(route, handler.HanlderFunc(f))
+func (m *MyServerMux) HandlerFunc(route string, f func(w response.ResponseWriter, r *request.Request)) {
+	m.Handle(route, handler.HandlerFunc(f))
 }
 
-func (m *MyServerMux) Handle(route string, handler handler.Handler) {
+func (m *MyServerMux) Handle(route string, h handler.Handler) {
 	if m.routes == nil {
 		m.routes = map[string]handler.Handler{}
 	}
-	m.routes[route] = handler
+	m.routes[route] = h
 }
 
 func serve(conn net.Conn, h handler.Handler) error {
@@ -63,16 +63,16 @@ func serve(conn net.Conn, h handler.Handler) error {
 	return nil 
 }
 
-func CustomListenAndServe(addr string, h handler.Handler) (
+func CustomListenAndServe(addr string, h handler.Handler) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
-	)
+		log.Fatal(err)
+	}
 	defer listener.Close()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			return err
+			log.Fatal(err)
 		}
 		// sidenote: I have decided to change how the request is read here. If we read the incoming requests and then wait for them to be parsed, we disallow multiple people from
 		// connecting to our server since we are occupaying the main thread in our method to wait for the request operations to finsih. We instead use a go rountine in a serve function

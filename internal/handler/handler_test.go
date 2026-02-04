@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/juancruzfl/httpserver/internal/request"
+	"github.com/juancruzfl/httpserver/internal/response"
 	"github.com/juancruzfl/httpserver/internal/headers"
 )
 
@@ -14,7 +15,7 @@ type MockResponseWriter struct {
 	Body []byte
 }
 
-func (m *MockResponseWriter) GetHeaders() *headers.headers {
+func (m *MockResponseWriter) GetHeaders() *headers.Headers {
 	return m.Headers
 }
 
@@ -23,11 +24,11 @@ func (m *MockResponseWriter) ResponseWriter(status int) {
 }
 
 func (m *MockResponseWriter) Write(data []byte) (int, error) {
-	m.Body = append(m.body, data...)
+	m.Body = append(m.Body, data...)
 	return len(data), nil
 }
 
-func MockResponseWriter() MockResponseWriter {
+func NewMockResponseWriter() *MockResponseWriter {
 	return &MockResponseWriter{
 	Status: 200, 
 	Headers: headers.NewHeaders(),
@@ -35,18 +36,18 @@ func MockResponseWriter() MockResponseWriter {
 }
 
 func TestMockHandler(t *testing.T) {
-	mockWriter := MockResponseWriter()
+	mockWriter := *NewMockResponseWriter()
 	mockReqLine := request.RequestLine{
 		HttpVersion: "1.1",
 		RequestTarget: "/testing",
 		Method: "GET",
 	}
-	mockReq := request.Request{
+	mockHeaders := *headers.NewHeaders()
+	mockHeaders.Set("Host", "localhost:8000")
+	mockReq := &request.Request{
 		RequestLine: mockReqLine,
-		Headers headers.Headers
-		Body []byte
-		bodyLength int
-		state parserState
+		Headers: mockHeaders,
+		Body: []byte("GET / HTTP/1.1\r\n\r\n"),
 	}
 	var myHandler HandlerFunc = func(w response.ResponseWriter, r *request.Request) {
 			w.CustomWriteHeader(200)
