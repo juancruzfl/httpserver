@@ -2,8 +2,6 @@ package handler
 
 import (
 	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/juancruzfl/httpserver/internal/request"
 	"github.com/juancruzfl/httpserver/internal/response"
 	"github.com/juancruzfl/httpserver/internal/headers"
@@ -19,7 +17,7 @@ func (m *MockResponseWriter) GetHeaders() *headers.Headers {
 	return m.Headers
 }
 
-func (m *MockResponseWriter) ResponseWriter(status int) {
+func (m *MockResponseWriter) CustomWriteHeader(status int) {
 	m.Status = status
 }
 
@@ -30,13 +28,13 @@ func (m *MockResponseWriter) Write(data []byte) (int, error) {
 
 func NewMockResponseWriter() *MockResponseWriter {
 	return &MockResponseWriter{
-	Status: 200, 
+	Status: 0, 
 	Headers: headers.NewHeaders(),
 	}
 }
 
 func TestMockHandler(t *testing.T) {
-	mockWriter := *NewMockResponseWriter()
+	mockWriter := NewMockResponseWriter()
 	mockReqLine := request.RequestLine{
 		HttpVersion: "1.1",
 		RequestTarget: "/testing",

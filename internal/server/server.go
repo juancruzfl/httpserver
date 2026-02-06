@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"net"
 	"github.com/juancruzfl/httpserver/internal/request"
 	"github.com/juancruzfl/httpserver/internal/response"
@@ -29,6 +28,7 @@ func (m *MyServerMux) Get(route string) (handler.Handler, bool) {
 func (m *MyServerMux) ServeHttp(w response.ResponseWriter, r *request.Request) {
 	handler, ok := m.Get(r.RequestLine.RequestTarget)
 	if !ok {
+		w.CustomWriteHeader(404)
 		w.Write([]byte("404 Not Found"))
 	} else {
 		handler.ServeHttp(w, r)
@@ -37,7 +37,7 @@ func (m *MyServerMux) ServeHttp(w response.ResponseWriter, r *request.Request) {
 
 // sidenote: we are casting the function that is being pass to the HandlerFunc method of the server multiplexer to the HandlerFunc apdater of the handler interface. It in turn, gives
 // us a valid handler, which is useful since we can reuse our Handle method.
-func (m *MyServerMux) HandlerFunc(route string, f func(w response.ResponseWriter, r *request.Request)) {
+func (m *MyServerMux) HandleFunc(route string, f func(w response.ResponseWriter, r *request.Request)) {
 	m.Handle(route, handler.HandlerFunc(f))
 }
 
@@ -63,20 +63,25 @@ func serve(conn net.Conn, h handler.Handler) error {
 	return nil 
 }
 
-func CustomListenAndServe(addr string, h handler.Handler) {
+func CustomListenAndServe(addr string, h handler.Handler) error {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer listener.Close()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		// sidenote: I have decided to change how the request is read here. If we read the incoming requests and then wait for them to be parsed, we disallow multiple people from
 		// connecting to our server since we are occupaying the main thread in our method to wait for the request operations to finsih. We instead use a go rountine in a serve function
 		// to offshore that work into a background thread.
-		go serve(conn, h)
+		go func(c net.Conn) {
+			err := serve(c, h)
+			if err != nil {
+				println("Error in trying to serve connection", err.Error())
+			}
+		}(conn)
 	}
 }

@@ -48,7 +48,7 @@ func (r *Response) CustomWriteHeader(status int) {
 		phrase = "Bad Request"
     case 404: 
 		phrase = "Not Found"
-    case 500: 
+    case 501: 
 		phrase = "Internal Server Error"
     default:  
 		phrase = "OK"
