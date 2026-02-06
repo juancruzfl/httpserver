@@ -148,8 +148,6 @@ func (r *Request) parse(data []byte) (int, error) {
 						r.state = StateDone
 					}
 				}
-				
-				return bytesRead, nil
 			case StateBodyFixed:
 				remaining := r.bodyLength - len(r.Body)
 				available := len(data) - bytesRead		
