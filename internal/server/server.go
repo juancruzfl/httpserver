@@ -8,44 +8,55 @@ import (
 )
 
 // sidenote: this is what is considered a 'router' in most http frameworks. In simple terms it helps the http server keep track of routes and their associated handlers
+type routeKey struct {
+	method string
+	path string
+}
+
 type MyServerMux struct {
-	routes map[string]handler.Handler
+	routes map[routeKey]handler.Handler
 }
 
 func NewServerMux() *MyServerMux {
 	return &MyServerMux{
-		routes: map[string]handler.Handler{},
+		routes: map[routeKey]handler.Handler{},
 	}
 }
 
 var MyDefaultMux = NewServerMux()
 
-func (m *MyServerMux) Get(route string) (handler.Handler, bool) {
-	handler, ok := m.routes[route]
+func (m *MyServerMux) Get(method string, path string) (handler.Handler, bool) {
+	key := routeKey{method: method, path: path}
+	handler, ok := m.routes[key]
 	return handler, ok			
 }
 
 func (m *MyServerMux) ServeHttp(w response.ResponseWriter, r *request.Request) {
-	handler, ok := m.Get(r.RequestLine.RequestTarget)
-	if !ok {
-		w.CustomWriteHeader(404)
-		w.Write([]byte("404 Not Found"))
-	} else {
-		handler.ServeHttp(w, r)
-	}
+    key := routeKey{
+        method: r.RequestLine.Method,
+        path:   r.RequestLine.RequestTarget,
+    }
+    handler, ok := m.routes[key]
+    if !ok {
+        w.CustomWriteHeader(404)
+        w.Write([]byte("404 Not Found"))
+        return
+    }
+    handler.ServeHttp(w, r)
 }
 
 // sidenote: we are casting the function that is being pass to the HandlerFunc method of the server multiplexer to the HandlerFunc apdater of the handler interface. It in turn, gives
 // us a valid handler, which is useful since we can reuse our Handle method.
-func (m *MyServerMux) HandleFunc(route string, f func(w response.ResponseWriter, r *request.Request)) {
-	m.Handle(route, handler.HandlerFunc(f))
+func (m *MyServerMux) HandleFunc(method string, path string, f func(response.ResponseWriter, *request.Request)) {
+    m.Handle(method, path, handler.HandlerFunc(f))
 }
 
-func (m *MyServerMux) Handle(route string, h handler.Handler) {
-	if m.routes == nil {
-		m.routes = map[string]handler.Handler{}
-	}
-	m.routes[route] = h
+func (m *MyServerMux) Handle(method string, path string, h handler.Handler) {
+    if m.routes == nil {
+        m.routes = make(map[routeKey]handler.Handler)
+    }
+    key := routeKey{method: method, path: path}
+    m.routes[key] = h
 }
 
 func serve(conn net.Conn, h handler.Handler) error {
